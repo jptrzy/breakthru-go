@@ -47,3 +47,10 @@ func ParseHexColorSimple(s string) (c color.RGBA) {
 	c, _ = ParseHexColor(s)
 	return
 }
+
+func IfThenElse(condition bool, a interface{}, b interface{}) interface{} {
+	if condition {
+		return a
+	}
+	return b
+}
