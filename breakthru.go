@@ -14,11 +14,12 @@ const (
 
 var board [board_size * board_size]int
 
-var player int = 0
-var moves int = 0
+var player int = 1
 
-var selected_x int = 0
-var selected_y int = 0
+var moved_pawn int = -1
+
+var selected bool = false
+var selected_tile int = 0
 
 //Graphics
 
@@ -51,19 +52,19 @@ var color_sheme = []color.RGBA{
 }
 
 func setup_board() {
-	// for y := 0; y < 5; y++ {
-	// 	board[1][y+3] = 1
-	// 	board[9][y+3] = 1
-	// 	board[y+3][1] = 1
-	// 	board[y+3][9] = 1
-	// }
+	for i := 0; i < 5; i++ {
+		board[14+i] = 1
+		board[102+i] = 1
+		board[11*(i+3)+1] = 1
+		board[11*(i+3)+9] = 1
+	}
 
-	// for y := 0; y < 3; y++ {
-	// 	board[3][y+4] = 2
-	// 	board[7][y+4] = 2
-	// 	board[y+4][3] = 2
-	// 	board[y+4][7] = 2
-	// }
+	for i := 0; i < 3; i++ {
+		board[37+i] = 2
+		board[81+i] = 2
+		board[11*(i+4)+3] = 2
+		board[11*(i+4)+7] = 2
+	}
 
 	board[60] = 3
 }
@@ -85,11 +86,30 @@ func updateSize() {
 	margin_y = (screen_height - board_g_size) / 2
 }
 
+func drawTile(rend *sdl.Renderer, tile int, back int) {
+	x := tile % 11
+	y := (tile - x) / 11
+	fmt.Println(x, y)
+	SetDrawColorByRGBA(rend, color_sheme[back])
+	rend.FillRect(&sdl.Rect{margin_x + border_size/2 + (block_size+border_size)*int32(x), margin_y + border_size/2 + (block_size+border_size)*int32(y), block_size + border_size, block_size + border_size})
+	SetDrawColorByRGBA(rend, color_sheme[board[tile]])
+	rend.FillRect(&sdl.Rect{margin_x + border_size + (block_size+border_size)*int32(x), margin_y + border_size + (block_size+border_size)*int32(y), block_size, block_size})
+}
+
+//TODO find easier way
+func drawBack(rend *sdl.Renderer) {
+	SetDrawColorByRGBA(rend, color_sheme[player+1])
+	rend.FillRect(&sdl.Rect{0, 0, screen_width, margin_y})
+	rend.FillRect(&sdl.Rect{0, margin_y + board_g_size, screen_width, margin_y})
+
+	rend.FillRect(&sdl.Rect{0, margin_y, margin_x, board_g_size})
+	rend.FillRect(&sdl.Rect{margin_x + board_g_size, margin_y, margin_x, board_g_size})
+}
+
 func drawBoard(rend *sdl.Renderer) {
-	SetDrawColorByRGBA(rend, color_sheme[0])
+	SetDrawColorByRGBA(rend, color_sheme[player+1])
 	rend.Clear()
 
-	//fmt.Print(margin_x, screen_size-board_g_size)
 	SetDrawColorByRGBA(rend, color_sheme[4])
 	rend.FillRect(&sdl.Rect{margin_x, margin_y, board_g_size, board_g_size})
 
@@ -100,6 +120,66 @@ func drawBoard(rend *sdl.Renderer) {
 		}
 	}
 
+	if selected {
+		drawTile(rend, selected_tile, 5)
+	}
+
+	rend.Present()
+}
+
+func on_mouse_click(rend *sdl.Renderer, x int32, y int32) {
+	if x > margin_x && x < margin_x+board_g_size && y > margin_y && y < margin_y+board_g_size {
+		x -= margin_x
+		y -= margin_y
+		tile_x := x / (border_size + block_size)
+		tile_y := y / (border_size + block_size)
+		on_tile_click(rend, int(tile_y*11+tile_x))
+	}
+}
+
+//Check if tile is actual player pawn
+func is_allay(tile int) bool {
+	if player == 0 && board[tile] == 1 || player == 1 && board[tile] > 1 {
+		return true
+	}
+	return false
+}
+
+func on_tile_click(rend *sdl.Renderer, tile int) {
+	drawTile(rend, selected_tile, 4)
+	if selected {
+		if tile != selected_tile {
+			//START Moving Logick
+
+			if board[tile] == 0 && (selected_tile == tile-1 || selected_tile == tile+1 || selected_tile == tile-11 || selected_tile == tile+11) {
+				board[tile] = board[selected_tile]
+				board[selected_tile] = 0
+				if moved_pawn != -1 {
+					moved_pawn = -1
+					player = (player + 1) % 2
+					drawBack(rend)
+				} else {
+					moved_pawn = tile
+				}
+			} else if board[tile] != 0 && !is_allay(tile) && (selected_tile == tile-10 || selected_tile == tile-12 || selected_tile == tile+10 || selected_tile == tile+12) {
+				board[tile] = board[selected_tile]
+				board[selected_tile] = 0
+				moved_pawn = -1
+				player = (player + 1) % 2
+				drawBack(rend)
+			}
+
+			//END
+
+			drawTile(rend, selected_tile, 4)
+			drawTile(rend, tile, 4)
+		}
+		selected = false
+	} else if board[tile] != 0 && is_allay(tile) && tile != moved_pawn {
+		selected_tile = tile
+		drawTile(rend, tile, 5)
+		selected = true
+	}
 	rend.Present()
 }
 
@@ -108,7 +188,6 @@ func main() {
 	//Varibles
 	var running bool = true
 
-	updateSize()
 	setup_board()
 
 	if err := sdl.Init(sdl.INIT_EVERYTHING); err != nil {
@@ -129,20 +208,9 @@ func main() {
 	}
 	defer renderer.Destroy()
 
+	updateSize()
 	drawBoard(renderer)
 
-	//renderer.FillRect(nil)
-
-	// surface.FillRect(nil, 0)
-
-	// rect := sdl.Rect{0, 0, 200, 200}
-	// surface.FillRect(&rect, 0xffff0000)
-	// window.UpdateSurface()
-	// rect = sdl.Rect{50, 100, 200, 200}
-	// surface.FillRect(&rect, 0xffffff00)
-	// window.UpdateSurface()
-
-	//drawBoard(surface);
 	for running {
 		for event := sdl.PollEvent(); event != nil; event = sdl.PollEvent() {
 			switch ev := event.(type) {
@@ -152,15 +220,13 @@ func main() {
 				break
 			case *sdl.WindowEvent:
 				if ev.Event == sdl.WINDOWEVENT_RESIZED {
-					fmt.Println("RESIZE")
 					screen_width, screen_height = window.GetSize()
 					updateSize()
 					drawBoard(renderer)
-
 				}
 			case *sdl.MouseButtonEvent:
 				if ev.State == 1 && ev.Button == 1 {
-
+					on_mouse_click(renderer, ev.X, ev.Y)
 				}
 			}
 
