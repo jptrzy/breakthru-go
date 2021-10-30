@@ -1,9 +1,12 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"image/color"
+	"io/ioutil"
 	"jptrzy/breakthru/utils"
+	"log"
 
 	"github.com/veandco/go-sdl2/sdl"
 )
@@ -49,6 +52,38 @@ var color_sheme = []color.RGBA{
 	utils.ParseHexColorSimple("#C3D898"),
 	utils.ParseHexColorSimple("#16161E"),
 	utils.ParseHexColorSimple("#e63946"),
+}
+
+type Config struct {
+	version     int
+	color_sheme []string
+}
+
+func load_json() {
+	content, err := ioutil.ReadFile("./config.json")
+	if err != nil {
+		log.Fatal("Error when opening file: ", err)
+	}
+
+	// Now let's unmarshall the data into `payload`
+	var payload map[string]interface{}
+	err = json.Unmarshal(content, &payload)
+	if err != nil {
+		log.Fatal("Error during Unmarshal(): ", err)
+	}
+
+	e, c := payload["color_sheme"].([]interface{})
+	// log.Printf("%i\n", payload.version)
+	// log.Println(string(content))
+	log.Println(payload["color_sheme"])
+	log.Println(e, c)
+	// log.Println(payload.version)
+	for i := 0; i < len(e); i++ {
+		color_sheme[i] = utils.ParseHexColorSimple(e[i].(string))
+	}
+
+	// Let's print the unmarshalled data!
+	//log.Printf("color_sheme: %s\n", payload["color_sheme"])
 }
 
 func setup_board() {
@@ -184,6 +219,7 @@ func on_tile_click(rend *sdl.Renderer, tile int) {
 }
 
 func main() {
+	load_json()
 
 	//Varibles
 	var running bool = true
@@ -219,7 +255,7 @@ func main() {
 				running = false
 				break
 			case *sdl.WindowEvent:
-				if ev.Event == sdl.WINDOWEVENT_RESIZED {
+				if ev.Event == sdl.WINDOWEVENT_RESIZED || ev.Event == sdl.WINDOWEVENT_EXPOSED {
 					screen_width, screen_height = window.GetSize()
 					updateSize()
 					drawBoard(renderer)
